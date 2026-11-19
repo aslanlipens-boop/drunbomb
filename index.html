@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DrunBomb">
+<meta name="theme-color" content="#020203">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+
+<title>DrunBomb</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root { --g:#b8c2c8; --r:#c4142c; --y:#d9a62b; --bg:#020203; --panel:#08090b; --line:#16181c; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { padding-top:max(16px, env(safe-area-inset-top)); padding-bottom:max(16px, env(safe-area-inset-bottom)); background:var(--bg); color:var(--g); font-family:'JetBrains Mono',monospace; min-height:100vh;
+         display:flex; justify-content:center; padding:16px; overflow-x:hidden; }
+  body::after { content:""; position:fixed; inset:0; pointer-events:none;
+         background:repeating-linear-gradient(0deg, rgba(0,0,0,.25) 0 1px, transparent 1px 3px); }
+  .app { width:100%; max-width:440px; }
+  .device { background:var(--panel); border:2px solid var(--line); border-radius:22px; padding:18px; position:relative;
+            box-shadow:0 0 60px rgba(196,20,44,.12), inset 0 0 40px rgba(0,0,0,.8); }
+  .device.glitch { animation:glitch .25s steps(2) 6; }
+  @keyframes glitch { 0%{transform:translate(0)} 25%{transform:translate(-3px,2px);filter:hue-rotate(40deg)}
+    50%{transform:translate(3px,-2px)} 75%{transform:translate(-2px,-1px);filter:hue-rotate(-40deg)} 100%{transform:translate(0)} }
+  header { display:flex; justify-content:space-between; align-items:center; font-size:12px; opacity:.8; margin-bottom:14px; }
+  h1 { font-size:20px; letter-spacing:2px; margin-bottom:4px; text-shadow:0 0 10px var(--r); color:var(--r); letter-spacing:5px; }
+  .sub { font-size:11px; opacity:.6; margin-bottom:16px; }
+  .term { background:#000; border:1px solid var(--line); border-radius:10px; padding:10px; height:120px; overflow:hidden;
+          font-size:11px; line-height:1.5; margin-bottom:16px; }
+  .term .r { color:var(--r); } .term .y { color:var(--y); }
+  .hint { font-size:11px; opacity:.7; margin-bottom:8px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
+  .phone { background:#05070a; border:1.5px solid var(--line); border-radius:12px; aspect-ratio:9/14; display:flex;
+           flex-direction:column; align-items:center; justify-content:center; gap:5px; font-size:10px; position:relative;
+           transition:border-color .2s; cursor:pointer; text-align:center; padding:4px; }
+  .phone .ico { width:16px; height:26px; border:2px solid var(--g); border-radius:4px; opacity:.35; }
+  .phone .nm { font-size:11px; font-weight:700; word-break:break-word; }
+  .phone.sel { border-color:var(--r); box-shadow:0 0 12px rgba(196,20,44,.4); }
+  .phone.sel .ico { opacity:1; border-color:var(--r); }
+  .phone.ringing { border-color:var(--r); animation:shake .12s infinite; box-shadow:0 0 14px rgba(255,59,92,.5); }
+  .phone.ringing .ico { opacity:1; border-color:var(--r); background:rgba(196,20,44,.4); }
+  .phone.ringing .st { color:var(--r); }
+  .phone.hacked { border-color:var(--y); }
+  .phone.hacked .st { color:var(--y); }
+  @keyframes shake { 0%{transform:rotate(-3deg)} 50%{transform:rotate(3deg)} 100%{transform:rotate(-3deg)} }
+  .bar { height:6px; background:#000; border:1px solid var(--line); border-radius:3px; overflow:hidden; margin-bottom:16px; }
+  .bar i { display:block; height:100%; width:0; background:var(--r); box-shadow:0 0 8px var(--r); transition:width .1s linear; }
+  .btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  button, .call { font-family:inherit; font-size:13px; font-weight:700; padding:14px 10px; border-radius:12px; cursor:pointer;
+           border:1.5px solid var(--g); background:rgba(255,255,255,.03); color:var(--g); letter-spacing:1px; text-align:center; text-decoration:none; display:block; }
+  button:active { transform:scale(.97); }
+  button:disabled { opacity:.35; cursor:default; }
+  button.main { grid-column:1/-1; border-color:var(--r); color:var(--r); background:rgba(255,59,92,.1); font-size:15px; padding:18px; }
+  .callbox { display:none; margin-top:16px; border:1.5px solid var(--y); border-radius:14px; padding:14px; background:rgba(255,210,63,.05); }
+  .callbox.show { display:block; }
+  .callbox h2 { font-size:13px; color:var(--y); margin-bottom:10px; }
+  .call { border-color:var(--y); color:#000; background:var(--r); border-color:var(--r); font-size:15px; padding:16px; }
+  .num { font-size:12px; color:var(--y); text-align:center; margin-top:8px; opacity:.85; }
+  .nonum { font-size:11px; opacity:.7; }
+  /* редактор */
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.8); display:none; align-items:center; justify-content:center; padding:16px; z-index:5; }
+  .modal.show { display:flex; }
+  .box { background:var(--panel); border:1.5px solid var(--g); border-radius:16px; padding:18px; width:100%; max-width:360px; }
+  .box h3 { font-size:14px; margin-bottom:12px; }
+  .box label { font-size:11px; opacity:.7; display:block; margin:10px 0 4px; }
+  .box input { width:100%; background:#000; border:1px solid var(--line); color:var(--g); font-family:inherit; font-size:15px;
+               padding:10px; border-radius:8px; }
+  .box .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+  .ov { position:fixed; inset:0; background:#050608; z-index:9; display:none; flex-direction:column; align-items:center; justify-content:center; gap:10px; }
+  .ov.show { display:flex; animation:ovin .25s ease-out; }
+  @keyframes ovin { from { opacity:0; transform:scale(1.08); } to { opacity:1; transform:none; } }
+  .ov svg { width:min(62vw,260px); animation:wob .16s steps(2) infinite; }
+  @keyframes wob { 0%{transform:translate(0,0) rotate(0)} 50%{transform:translate(-2px,1px) rotate(-1.5deg)} 100%{transform:translate(2px,-1px) rotate(1.5deg)} }
+  .ov .who { font-size:13px; letter-spacing:4px; color:#6b7278; }
+  .ov .cap { font-size:30px; font-weight:700; letter-spacing:6px; color:var(--r); text-shadow:0 0 14px rgba(196,20,44,.7); }
+  .ov .spark { animation:spk .12s infinite alternate; transform-origin:150px 38px; }
+  @keyframes spk { from{opacity:1; transform:scale(1)} to{opacity:.5; transform:scale(.7)} }
+  .ov .e2 { display:none; } .ov.alt .e1 { display:none; } .ov.alt .e2 { display:inline; }
+  .note { font-size:10px; opacity:.45; text-align:center; margin-top:14px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="device" id="dev">
+    <header><span>ЗАЩИЩЁННЫЙ КАНАЛ</span><span id="clock">00:00</span></header>
+    <h1>DRUNBOMB</h1>
+
+    <div class="term" id="term"></div>
+
+    <div class="hint">Нажми на цель, чтобы выбрать. Долгое нажатие или «Изменить» — сменить имя и номер.</div>
+    <div class="grid" id="grid"></div>
+
+    <div class="bar"><i id="prog"></i></div>
+
+    <div class="btns">
+      <button class="main" id="bomb">ВЗЛОМАТЬ ЦЕЛЬ</button>
+      <button id="edit">ИЗМЕНИТЬ</button>
+      <button id="reset">СБРОС</button>
+    </div>
+
+    <div class="callbox" id="callbox">
+      <h2 id="callTitle">ДОСТУП ПОЛУЧЕН</h2>
+      <div id="callArea"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="box">
+    <h3>НАСТРОЙКА ЦЕЛИ</h3>
+    <label>Имя</label>
+    <input id="inName" maxlength="14">
+    <label>Номер телефона (необязательно)</label>
+    <input id="inNum" type="tel" placeholder="+994 ...">
+    <div class="row">
+      <button id="cancel">ОТМЕНА</button>
+      <button id="save">СОХРАНИТЬ</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="ov">
+  <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <defs><filter id="gl"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <path d="M128 62 Q140 40 150 38" stroke="#8a8f94" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <rect x="112" y="54" width="22" height="16" rx="3" transform="rotate(35 123 62)" fill="#2a2d33" stroke="#8a8f94" stroke-width="2"/>
+    <g class="spark" filter="url(#gl)"><circle cx="150" cy="38" r="6" fill="#ffb02e"/><path d="M150 26v-8M160 32l6-6M162 40h8M140 30l-5-5" stroke="#ffb02e" stroke-width="2.5" stroke-linecap="round"/></g>
+    <circle cx="96" cy="118" r="62" fill="#14161a" stroke="#c4142c" stroke-width="3"/>
+    <path d="M60 86 L74 100 L68 112 M132 140 L120 150 L126 162" stroke="#2c3036" stroke-width="2" fill="none"/>
+    <g filter="url(#gl)">
+      <g class="e1"><path d="M58 104 L88 116 L84 124 L60 116Z" fill="#e01f3d"/><path d="M134 104 L104 116 L108 124 L132 116Z" fill="#e01f3d"/></g>
+      <g class="e2"><path d="M58 114 L88 118 L86 121 L58 119Z" fill="#e01f3d"/><path d="M134 114 L104 118 L106 121 L134 119Z" fill="#e01f3d"/></g>
+      <path d="M66 146 L76 138 L84 148 L94 138 L104 148 L114 138 L122 146" stroke="#e01f3d" stroke-width="3.5" fill="none" stroke-linejoin="round"/>
+    </g>
+  </svg>
+  <div class="cap">ПОПАЛСЯ</div>
+  <div class="who" id="ovWho"></div>
+</div>
+<script>
+const DEF = [
+  {n:'ИМРАН', p:''}, {n:'АДЫЛЬ', p:''}, {n:'ФАРИД', p:''},
+  {n:'ВАГИФ', p:''}, {n:'ЭЛЬШАД', p:''}, {n:'АЙСУ ХАНУМ', p:''}
+];
+let targets;
+try { targets = JSON.parse(localStorage.getItem('lb_targets2')) || DEF; } catch(e) { targets = DEF; }
+function store() { try { localStorage.setItem('lb_targets2', JSON.stringify(targets)); } catch(e) {} }
+
+const grid = document.getElementById('grid'), term = document.getElementById('term');
+const prog = document.getElementById('prog'), dev = document.getElementById('dev');
+const bombBtn = document.getElementById('bomb');
+let cards = [], sel = 0, ctx, ringTimer, busy = false;
+
+function build() {
+  grid.innerHTML = ''; cards = [];
+  targets.forEach((t,i) => {
+    const d = document.createElement('div');
+    d.className = 'phone' + (i === sel ? ' sel' : '');
+    d.innerHTML = `<div class="ico"></div><div class="nm"></div><div class="st">в сети</div>`;
+    d.querySelector('.nm').textContent = t.n;
+    d.onclick = () => { if (!busy) { sel = i; build(); bzz(0, .08, .05); } };
+    let lp;
+    d.addEventListener('touchstart', () => { lp = setTimeout(() => { sel = i; openEdit(); }, 600); }, {passive:true});
+    d.addEventListener('touchend', () => clearTimeout(lp));
+    d.addEventListener('touchmove', () => clearTimeout(lp));
+    grid.appendChild(d); cards.push(d);
+  });
+}
+function log(t, cls='') {
+  const l = document.createElement('div');
+  if (cls) l.className = cls;
+  l.textContent = '> ' + t;
+  term.appendChild(l);
+  while (term.children.length > 7) term.removeChild(term.firstChild);
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+function audio() {
+  try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { ctx = null; }
+  return ctx;
+}
+function beep(f, d, type='square', vol=.05) {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.value = f; g.gain.value = vol;
+  o.connect(g); g.connect(a.destination);
+  o.start(); o.stop(a.currentTime + d);
+}
+// --- свой «хакерский» рингтон: искажённые цифровые чирпы + глитч ---
+function dist(a, amt) {
+  const ws = a.createWaveShaper(), n = 256, c = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = i * 2 / n - 1; c[i] = (3 + amt) * x * 20 * Math.PI / 180 / (Math.PI + amt * Math.abs(x)); }
+  ws.curve = c; return ws;
+}
+function tone(f, start, d, type='sawtooth', vol=.06, glide=0) {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain(), ds = dist(a, 60), lp = a.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 2600;
+  o.type = type; const t0 = a.currentTime + start;
+  o.frequency.setValueAtTime(f, t0);
+  if (glide) o.frequency.exponentialRampToValueAtTime(f * glide, t0 + d);
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + .005);
+  g.gain.setValueAtTime(vol, t0 + d * .8); g.gain.linearRampToValueAtTime(0, t0 + d);
+  o.connect(ds); ds.connect(lp); lp.connect(g); g.connect(a.destination);
+  o.start(t0); o.stop(t0 + d + .02);
+}
+function noise(start, d, vol=.05, from=400, to=6000) {
+  const a = audio(); if (!a) return;
+  const b = a.createBuffer(1, a.sampleRate * d, a.sampleRate), ch = b.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+  const s = a.createBufferSource(), bp = a.createBiquadFilter(), g = a.createGain();
+  s.buffer = b; bp.type = 'bandpass'; bp.Q.value = 4;
+  const t0 = a.currentTime + start;
+  bp.frequency.setValueAtTime(from, t0); bp.frequency.exponentialRampToValueAtTime(to, t0 + d);
+  g.gain.setValueAtTime(vol, t0); g.gain.linearRampToValueAtTime(0, t0 + d);
+  s.connect(bp); bp.connect(g); g.connect(a.destination); s.start(t0);
+}
+// ===== мрачный звук: гул, сердцебиение, скрежет, шёпот, эхо =====
+let verb;
+function bus() {                       // общий «зал» с длинным эхом
+  const a = audio(); if (!a) return null;
+  if (verb) return verb;
+  const len = a.sampleRate * 3.5, ir = a.createBuffer(2, len, a.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 2.5); }
+  const cv = a.createConvolver(); cv.buffer = ir;
+  const wet = a.createGain(); wet.gain.value = .9;
+  cv.connect(wet); wet.connect(a.destination);
+  verb = cv; return verb;
+}
+function out(node) { const a = audio(); node.connect(a.destination); const v = bus(); if (v) node.connect(v); }
+function env(g, t0, atk, hold, rel, vol) {
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + atk);
+  g.gain.setValueAtTime(vol, t0 + atk + hold); g.gain.linearRampToValueAtTime(0, t0 + atk + hold + rel);
+}
+function drone(start, d, freqs, vol=.05) {   // низкий диссонансный гул
+  const a = audio(); if (!a) return;
+  const t0 = a.currentTime + start, g = a.createGain(), lp = a.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.setValueAtTime(120, t0); lp.frequency.linearRampToValueAtTime(700, t0 + d * .7);
+  env(g, t0, d * .3, d * .4, d * .3, vol);
+  freqs.forEach((f,i) => { const o = a.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = (i%2?1:-1) * 9; o.connect(lp); o.start(t0); o.stop(t0 + d + .05); });
+  lp.connect(g); out(g);
+}
+function heart(start, vol=.5) {              // удар сердца: два глухих толчка
+  const a = audio(); if (!a) return;
+  [0, .22].forEach((dt, k) => {
+    const t0 = a.currentTime + start + dt, o = a.createOscillator(), g = a.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(70, t0); o.frequency.exponentialRampToValueAtTime(32, t0 + .18);
+    env(g, t0, .005, .03, .17, vol * (k ? .7 : 1));
+    o.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0 + .25);
+  });
+}
+function screech(start, d, vol=.025) {        // металлический скрежет
+  const a = audio(); if (!a) return;
+  const t0 = a.currentTime + start, g = a.createGain(), bp = a.createBiquadFilter();
+  bp.type = 'bandpass'; bp.Q.value = 18; bp.frequency.setValueAtTime(2400, t0); bp.frequency.linearRampToValueAtTime(3100, t0 + d);
+  env(g, t0, d * .4, d * .2, d * .4, vol);
+  [1, 1.059, 1.414].forEach(m => { const o = a.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(800 * m, t0); o.frequency.linearRampToValueAtTime(760 * m, t0 + d); o.connect(bp); o.start(t0); o.stop(t0 + d + .05); });
+  bp.connect(g); out(g);
+}
+function whisper(start, d, vol=.04) {        // шипящий «шёпот»
+  const a = audio(); if (!a) return;
+  const b = a.createBuffer(1, a.sampleRate * d, a.sampleRate), ch = b.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = (Math.random()*2-1) * (0.5 + 0.5 * Math.sin(i / a.sampleRate * 2 * Math.PI * (3 + Math.sin(i/9000)*2)));
+  const s = a.createBufferSource(), bp = a.createBiquadFilter(), g = a.createGain(), t0 = a.currentTime + start;
+  s.buffer = b; bp.type = 'bandpass'; bp.Q.value = 3;
+  bp.frequency.setValueAtTime(900, t0); bp.frequency.linearRampToValueAtTime(2200, t0 + d/2); bp.frequency.linearRampToValueAtTime(700, t0 + d);
+  env(g, t0, d * .3, d * .3, d * .4, vol);
+  s.connect(bp); bp.connect(g); out(g); s.start(t0);
+}
+function hit(start, vol=.35) {               // тяжёлый удар с эхом
+  const a = audio(); if (!a) return;
+  const t0 = a.currentTime + start, o = a.createOscillator(), g = a.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(110, t0); o.frequency.exponentialRampToValueAtTime(28, t0 + 1.2);
+  env(g, t0, .005, .1, 1.3, vol); o.connect(g); out(g); o.start(t0); o.stop(t0 + 1.5);
+  noise(start, .4, .06, 1200, 80);
+}
+let ringStep = 0;
+function bzz(start, d, vol=.05) {             // вибромотор: грубый низкий гул (~42 Гц + гармоники)
+  const a = audio(); if (!a) return;
+  const t0 = a.currentTime + start;
+  const g = a.createGain(), lp = a.createBiquadFilter(), ds = dist(a, 80);
+  lp.type = 'lowpass'; lp.frequency.value = 1400;
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + .02);
+  g.gain.setValueAtTime(vol, t0 + d - .03); g.gain.linearRampToValueAtTime(0, t0 + d);
+  [[42,'sawtooth',1],[127,'square',.6]].forEach(([f,t,m]) => {
+    const o = a.createOscillator(), og = a.createGain();
+    o.type = t; o.frequency.value = f; o.frequency.setValueAtTime(f, t0); o.frequency.linearRampToValueAtTime(f * .97, t0 + d);
+    og.gain.value = m; o.connect(og); og.connect(ds); o.start(t0); o.stop(t0 + d + .03);
+  });
+  ds.connect(lp); lp.connect(g); g.connect(a.destination);
+}
+// рисунок как в видео: бз — бззззззз-з-з-з — тишина  (цикл ~3.1 с)
+function ring() {
+  bzz(0,    .30);
+  bzz(.50, 1.10);
+  [[1.62,.10],[1.80,.16],[2.05,.10],[2.25,.14]].forEach(([s,d]) => bzz(s, d, .03));
+  buzz([300,200,1100,60,100,80,160,90,100,90,140]);
+  emoFlip();
+}
+function hackStart() {}
+function emoFlip() {          // смена выражения «лица», как в видео
+  const ov = document.getElementById('ov');
+  [0,300,500,1600,1800,2050,2250].forEach((t,i) => setTimeout(() => ov.classList.toggle('alt', i % 2 === 0), t));
+}
+function showOv(name) { const ov = document.getElementById('ov'); document.getElementById('ovWho').textContent = 'ЦЕЛЬ: ' + name; ov.classList.add('show'); }
+function hideOv() { document.getElementById('ov').classList.remove('show','alt'); }
+function hackDone() { hit(0, .35); }
+function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch(e) {} }
+
+async function hack() {
+  if (busy) return; busy = true;
+  const t = targets[sel], card = cards[sel];
+  // звонок сразу, прямо в момент нажатия — иначе телефон блокирует набор
+  if (t.p) {
+    const link = document.createElement('a');
+    link.href = 'tel:' + t.p.replace(/[^\d+]/g, '');
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    try { link.click(); } catch(e) { try { location.href = link.href; } catch(_) {} }
+    setTimeout(() => link.remove(), 1000);
+  }
+  bombBtn.disabled = true;
+  document.getElementById('callbox').classList.remove('show');
+  term.innerHTML = '';
+  log('цель: ' + t.n, 'y');
+  log('инициализация эксплойта…');
+  hackStart();
+  for (let p = 0; p <= 100; p += 4) {
+    prog.style.width = p + '%';
+    if (p === 32) log('поиск устройства «' + t.n + '»… найдено');
+    if (p === 64) log('внедрение пакета…');
+    await wait(60);
+  }
+  log('DRUNBOMB АКТИВИРОВАНА', 'r');
+  dev.classList.add('glitch'); setTimeout(() => dev.classList.remove('glitch'), 1600);
+  card.classList.add('ringing'); card.querySelector('.st').textContent = 'ЗВОНИТ!';
+  showOv(t.n);
+  ringTimer = setInterval(ring, 3100); ring();
+
+  await wait(6200);
+  clearInterval(ringTimer);
+  hideOv();
+  card.classList.remove('ringing'); card.classList.add('hacked');
+  card.querySelector('.st').textContent = 'ВЗЛОМАН';
+  hackDone();
+  log('доступ к «' + t.n + '» получен', 'y');
+  showCall(t);
+  bombBtn.disabled = false; busy = false;
+}
+
+function showCall(t) {
+  const box = document.getElementById('callbox'), area = document.getElementById('callArea');
+  document.getElementById('callTitle').textContent = 'ДОСТУП К «' + t.n + '» ПОЛУЧЕН';
+  area.innerHTML = '';
+  if (t.p) {
+    const a = document.createElement('a');
+    a.className = 'call';
+    a.href = 'tel:' + t.p.replace(/[^\d+]/g, '');
+    a.textContent = 'ПОЗВОНИТЬ: ' + t.n;
+    const n = document.createElement('div');
+    n.className = 'num'; n.textContent = t.p + ' — если кнопка не сработала, набери вручную';
+    area.append(a, n);
+  } else {
+    const n = document.createElement('div');
+    n.className = 'nonum';
+    n.textContent = 'Номер не указан. Нажми ИЗМЕНИТЬ и добавь номер, тогда тут появится кнопка звонка.';
+    area.append(n);
+  }
+  box.classList.add('show');
+}
+
+const modal = document.getElementById('modal');
+function openEdit() {
+  if (busy) return;
+  document.getElementById('inName').value = targets[sel].n;
+  document.getElementById('inNum').value = targets[sel].p;
+  modal.classList.add('show');
+}
+document.getElementById('save').onclick = () => {
+  const n = document.getElementById('inName').value.trim().toUpperCase() || targets[sel].n;
+  targets[sel] = { n, p: document.getElementById('inNum').value.trim() };
+  store(); modal.classList.remove('show'); build();
+  log('цель обновлена: ' + n);
+};
+document.getElementById('cancel').onclick = () => modal.classList.remove('show');
+
+function reset() {
+  clearInterval(ringTimer); hideOv();
+  busy = false; prog.style.width = '0'; bombBtn.disabled = false;
+  document.getElementById('callbox').classList.remove('show');
+  term.innerHTML = ''; log('система готова. выбери цель.');
+  build();
+}
+
+setInterval(() => {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
+}, 1000);
+bombBtn.onclick = hack;
+document.getElementById('edit').onclick = openEdit;
+document.getElementById('reset').onclick = reset;
+reset();
+</script>
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});</script>
+</body>
+</html>
