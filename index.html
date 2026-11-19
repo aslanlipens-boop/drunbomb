@@ -345,7 +345,7 @@ function startRain() {
   cancelAnimationFrame(rainRAF); step();
 }
 function stopRain() { cancelAnimationFrame(rainRAF); }
-function showOv(name) { const ov = document.getElementById('ov'); document.getElementById('ovWho').textContent = 'ЦЕЛЬ: ' + name; ov.classList.add('show'); }
+function showOv(name) { const ov = document.getElementById('ov'); document.getElementById('ovWho').textContent = ''; ov.classList.add('show'); }
 function hideOv() { stopRain(); document.getElementById('ov').classList.remove('show','alt','bomb'); }
 function hackDone() { hit(0, .35); }
 function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch(e) {} }
@@ -371,7 +371,7 @@ async function hack() {
   hackStart();
   for (let p = 0; p <= 100; p += 4) {
     prog.style.width = p + '%';
-    document.getElementById('ovWho').textContent = 'ВЗЛОМ: ' + t.n + '  ' + p + '%';
+    document.getElementById('ovWho').textContent = 'ВЗЛОМ ' + p + '%';
     if (p === 32) log('поиск устройства «' + t.n + '»… найдено');
     if (p === 64) log('внедрение пакета…');
     await wait(60);
@@ -379,7 +379,7 @@ async function hack() {
   log('DRUNBOMB АКТИВИРОВАНА', 'r');
   dev.classList.add('glitch'); setTimeout(() => dev.classList.remove('glitch'), 1600);
   card.classList.add('ringing'); card.querySelector('.st').textContent = 'ЗВОНИТ!';
-  document.getElementById('ovWho').textContent = 'ЦЕЛЬ: ' + t.n;
+  document.getElementById('ovWho').textContent = '';
   document.getElementById('ov').classList.add('bomb');
   ringTimer = setInterval(ring, 3100); ring();
 
