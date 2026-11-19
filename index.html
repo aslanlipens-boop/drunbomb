@@ -76,6 +76,14 @@
   @keyframes ovin { from { opacity:0; transform:scale(1.08); } to { opacity:1; transform:none; } }
   .ov svg { width:min(62vw,260px); animation:wob .16s steps(2) infinite; }
   @keyframes wob { 0%{transform:translate(0,0) rotate(0)} 50%{transform:translate(-2px,1px) rotate(-1.5deg)} 100%{transform:translate(2px,-1px) rotate(1.5deg)} }
+  .ov #rain { position:absolute; inset:0; width:100%; height:100%; z-index:0; }
+  .ov .halo { position:absolute; width:min(90vw,380px); height:min(90vw,380px); border-radius:50%; z-index:0;
+              background:radial-gradient(circle, rgba(0,0,0,.95) 45%, rgba(0,0,0,0) 70%); opacity:0; transition:opacity .4s; }
+  .ov > svg, .ov .cap, .ov .who { position:relative; z-index:1; }
+  .ov > svg, .ov .cap { opacity:0; transform:scale(.6); transition:opacity .35s, transform .35s cubic-bezier(.2,1.6,.4,1); }
+  .ov.bomb > svg, .ov.bomb .cap { opacity:1; transform:none; }
+  .ov.bomb .halo { opacity:1; }
+  .ov .who { color:#3dff6e !important; text-shadow:0 0 8px #000, 0 0 4px #000; font-weight:700; }
   .ov .who { font-size:13px; letter-spacing:4px; color:#6b7278; }
   .ov .cap { font-size:30px; font-weight:700; letter-spacing:6px; color:var(--r); text-shadow:0 0 14px rgba(196,20,44,.7); }
   .ov .spark { animation:spk .12s infinite alternate; transform-origin:150px 38px; }
@@ -125,6 +133,8 @@
 </div>
 
 <div class="ov" id="ov">
+  <canvas id="rain"></canvas>
+  <div class="halo"></div>
   <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
     <defs><filter id="gl"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
     <path d="M128 62 Q140 40 150 38" stroke="#8a8f94" stroke-width="4" fill="none" stroke-linecap="round"/>
@@ -306,8 +316,37 @@ function emoFlip() {          // смена выражения «лица», к�
   const ov = document.getElementById('ov');
   [0,300,500,1600,1800,2050,2250].forEach((t,i) => setTimeout(() => ov.classList.toggle('alt', i % 2 === 0), t));
 }
+let rainRAF, rainCols, rainT0;
+function startRain() {
+  const cv = document.getElementById('rain'), c = cv.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+  c.setTransform(dpr,0,0,dpr,0,0);
+  const fs = 16, n = Math.ceil(innerWidth / fs) + 1;
+  const chars = '01ABCDEF<>/{}[]#$%&*+=アイウエオカキクケコサシスセソタチツテトナニヌネ';
+  rainCols = Array.from({length:n}, () => -Math.random() * 40);
+  rainT0 = performance.now();
+  c.fillStyle = '#000'; c.fillRect(0,0,innerWidth,innerHeight);
+  const step = () => {
+    const k = Math.min((performance.now() - rainT0) / 2500, 1);   // 0→1 за 2.5 с: экран заливается кодом
+    c.fillStyle = `rgba(0,0,0,${0.12 - k * 0.09})`;              // всё меньше затухание — код копится
+    c.fillRect(0,0,innerWidth,innerHeight);
+    c.font = `700 ${fs}px JetBrains Mono, monospace`;
+    for (let i = 0; i < n; i++) {
+      const y = rainCols[i] * fs;
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      c.fillStyle = Math.random() < .08 ? '#d8ffe0' : (Math.random() < .5 ? '#1fff5a' : '#0b9e34');
+      c.fillText(ch, i * fs, y);
+      rainCols[i] += 0.6 + k * 0.9 + Math.random() * .3;
+      if (y > innerHeight && Math.random() > 0.96 - k * 0.2) rainCols[i] = -Math.random() * 10;
+    }
+    rainRAF = requestAnimationFrame(step);
+  };
+  cancelAnimationFrame(rainRAF); step();
+}
+function stopRain() { cancelAnimationFrame(rainRAF); }
 function showOv(name) { const ov = document.getElementById('ov'); document.getElementById('ovWho').textContent = 'ЦЕЛЬ: ' + name; ov.classList.add('show'); }
-function hideOv() { document.getElementById('ov').classList.remove('show','alt'); }
+function hideOv() { stopRain(); document.getElementById('ov').classList.remove('show','alt','bomb'); }
 function hackDone() { hit(0, .35); }
 function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch(e) {} }
 
@@ -326,11 +365,13 @@ async function hack() {
   bombBtn.disabled = true;
   document.getElementById('callbox').classList.remove('show');
   term.innerHTML = '';
+  showOv(t.n); startRain();
   log('цель: ' + t.n, 'y');
   log('инициализация эксплойта…');
   hackStart();
   for (let p = 0; p <= 100; p += 4) {
     prog.style.width = p + '%';
+    document.getElementById('ovWho').textContent = 'ВЗЛОМ: ' + t.n + '  ' + p + '%';
     if (p === 32) log('поиск устройства «' + t.n + '»… найдено');
     if (p === 64) log('внедрение пакета…');
     await wait(60);
@@ -338,7 +379,8 @@ async function hack() {
   log('DRUNBOMB АКТИВИРОВАНА', 'r');
   dev.classList.add('glitch'); setTimeout(() => dev.classList.remove('glitch'), 1600);
   card.classList.add('ringing'); card.querySelector('.st').textContent = 'ЗВОНИТ!';
-  showOv(t.n);
+  document.getElementById('ovWho').textContent = 'ЦЕЛЬ: ' + t.n;
+  document.getElementById('ov').classList.add('bomb');
   ringTimer = setInterval(ring, 3100); ring();
 
   await wait(6200);
