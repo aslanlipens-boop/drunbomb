@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Зачистка">
+<meta name="theme-color" content="#020203">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<link rel="icon" href="../icon-192.png">
+<title>DrunBomb: Зачистка</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; background:#020203; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none;
+               font-family:'JetBrains Mono', monospace; color:#b8c2c8; }
+  canvas { display:block; position:fixed; inset:0; width:100%; height:100%; }
+  .hud { position:fixed; left:0; right:0; top:0; padding:max(12px, env(safe-area-inset-top)) 16px 0; display:flex;
+         justify-content:space-between; align-items:flex-start; pointer-events:none; font-size:13px; letter-spacing:1px; }
+  .hud b { color:#fff; font-size:18px; }
+  .hp { display:flex; gap:4px; margin-top:6px; }
+  .hp i { width:18px; height:6px; background:#c4142c; box-shadow:0 0 6px #c4142c; }
+  .hp i.off { background:#2a1a1d; box-shadow:none; }
+  .emp { position:fixed; right:max(18px, env(safe-area-inset-right)); bottom:max(28px, env(safe-area-inset-bottom));
+         width:84px; height:84px; border-radius:50%; border:2px solid #3dff6e; color:#3dff6e; background:rgba(61,255,110,.06);
+         font:700 12px 'JetBrains Mono'; letter-spacing:1px; display:none; align-items:center; justify-content:center; text-align:center; z-index:3; }
+  .emp.show { display:flex; }
+  .emp.ready { background:rgba(61,255,110,.2); box-shadow:0 0 22px rgba(61,255,110,.6); animation:pulse 1s infinite; }
+  .emp.empty { border-color:#30383c; color:#4a5459; }
+  @keyframes pulse { 50% { transform:scale(1.07); } }
+  .screen { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+            background:rgba(2,2,3,.86); z-index:5; text-align:center; padding:24px; }
+  .screen.hide { display:none; }
+  .screen h1 { font-size:38px; letter-spacing:6px; color:#c4142c; text-shadow:0 0 16px rgba(196,20,44,.7); }
+  .screen h2 { font-size:14px; letter-spacing:4px; color:#3dff6e; }
+  .screen p { font-size:12px; line-height:1.7; opacity:.75; max-width:320px; }
+  .screen .big { font-size:44px; color:#fff; font-weight:700; }
+  .btn { margin-top:10px; font:700 16px 'JetBrains Mono'; letter-spacing:3px; padding:16px 34px; border-radius:14px;
+         border:2px solid #c4142c; color:#c4142c; background:rgba(196,20,44,.1); }
+  .btn:active { transform:scale(.96); }
+  .wave { position:fixed; left:0; right:0; top:38%; text-align:center; font-size:26px; letter-spacing:8px; color:#3dff6e;
+          text-shadow:0 0 14px rgba(61,255,110,.8); pointer-events:none; opacity:0; transition:opacity .4s; z-index:2; }
+  .wave.on { opacity:1; }
+  .back { position:fixed; left:max(14px, env(safe-area-inset-left)); bottom:max(18px, env(safe-area-inset-bottom)); font-size:11px;
+          color:#4a5459; text-decoration:none; z-index:6; letter-spacing:1px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="hud" id="hud" style="display:none">
+  <div>ОЧКИ<br><b id="score">0</b><div class="hp" id="hp"></div></div>
+  <div style="text-align:right">ВОЛНА<br><b id="waveN">1</b><br><span id="best" style="font-size:11px;opacity:.6"></span></div>
+</div>
+<div class="emp empty" id="emp">ЭМИ<br>0%</div>
+<div class="wave" id="waveTxt"></div>
+
+<div class="screen" id="start">
+  <h2>DRUNBOMB</h2>
+  <h1>ЗАЧИСТКА</h1>
+  <p>Бомбы лезут со всех сторон. Води пальцем по экрану, чтобы двигаться, стреляешь ты сам автоматически.
+     Убивай, копи заряд <b style="color:#3dff6e">ЭМИ</b> и жми его, когда станет совсем жарко.</p>
+  <p id="bestStart"></p>
+  <button class="btn" id="go">НАЧАТЬ</button>
+</div>
+
+<div class="screen hide" id="over">
+  <h2>ТЫ</h2>
+  <h1>ПОПАЛСЯ</h1>
+  <div class="big" id="final">0</div>
+  <p id="overInfo"></p>
+  <button class="btn" id="again">ЕЩЁ РАЗ</button>
+</div>
+
+<a class="back" href="../">← DRUNBOMB</a>
+
+<script>
+const cv = document.getElementById('c'), cx = cv.getContext('2d');
+let W, H, DPR;
+function resize() {
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+addEventListener('resize', resize); resize();
+
+// ---------- звук ----------
+let AC;
+function ac() { try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {} return AC; }
+function snd(type, f, d, vol, glide) {
+  const a = ac(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (glide) o.frequency.exponentialRampToValueAtTime(glide, t + d);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+  o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + d);
+}
+function boom(vol=.25, len=.35) {
+  const a = ac(); if (!a) return;
+  const b = a.createBuffer(1, a.sampleRate * len, a.sampleRate), ch = b.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = (Math.random()*2-1) * Math.pow(1 - i/ch.length, 2);
+  const s = a.createBufferSource(), lp = a.createBiquadFilter(), g = a.createGain();
+  lp.type = 'lowpass'; lp.frequency.value = 900; g.gain.value = vol;
+  s.buffer = b; s.connect(lp); lp.connect(g); g.connect(a.destination); s.start();
+}
+const sfx = {
+  shoot: () => snd('square', 900, .05, .015, 300),
+  hit:   () => snd('square', 200, .05, .03, 90),
+  kill:  () => { boom(.12, .25); snd('sawtooth', 120, .2, .04, 40); },
+  hurt:  () => { boom(.3, .4); snd('sawtooth', 80, .4, .08, 30); },
+  pick:  () => { snd('sine', 600, .08, .06, 1200); setTimeout(() => snd('sine', 900, .1, .05, 1600), 70); },
+  emp:   () => { boom(.4, 1.2); snd('sawtooth', 40, 1.2, .1, 300); },
+  wave:  () => { snd('sawtooth', 55, .8, .06, 110); },
+};
+
+// ---------- ввод ----------
+const joy = { on:false, id:null, sx:0, sy:0, x:0, y:0 };
+const keys = {};
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') useEmp(); });
+addEventListener('keyup', e => keys[e.code] = false);
+cv.addEventListener('pointerdown', e => {
+  ac();
+  if (joy.on) return;
+  joy.on = true; joy.id = e.pointerId; joy.sx = joy.x = e.clientX; joy.sy = joy.y = e.clientY;
+});
+addEventListener('pointermove', e => { if (joy.on && e.pointerId === joy.id) { joy.x = e.clientX; joy.y = e.clientY; } });
+const endJoy = e => { if (e.pointerId === joy.id) joy.on = false; };
+addEventListener('pointerup', endJoy); addEventListener('pointercancel', endJoy);
+
+// ---------- состояние ----------
+let P, bullets, foes, ebullets, parts, pickups, texts, score, wave, waveLeft, spawnT, shake, running, emp, best, lastT, kills;
+try { best = +localStorage.getItem('db_shooter_best') || 0; } catch(e) { best = 0; }
+
+function reset() {
+  P = { x:W/2, y:H/2, r:13, hp:5, max:5, vx:0, vy:0, fire:0, inv:0, rapid:0, triple:0, ang:-Math.PI/2 };
+  bullets = []; foes = []; ebullets = []; parts = []; pickups = []; texts = [];
+  score = 0; wave = 0; waveLeft = 0; spawnT = 0; shake = 0; emp = 0; kills = 0;
+  nextWave();
+}
+function nextWave() {
+  wave++;
+  waveLeft = 6 + wave * 4;
+  spawnT = 1.2;
+  const w = document.getElementById('waveTxt');
+  w.textContent = 'ВОЛНА ' + wave; w.classList.add('on');
+  setTimeout(() => w.classList.remove('on'), 1600);
+  sfx.wave();
+  if (wave > 1) P.hp = Math.min(P.max, P.hp + 1);
+}
+
+// типы врагов
+const TYPES = {
+  runner: { r:12, hp:1, sp:95,  col:'#e01f3d', pts:10 },
+  fast:   { r:9,  hp:1, sp:170, col:'#ff6a2e', pts:15 },
+  tank:   { r:20, hp:7, sp:55,  col:'#9b1028', pts:40 },
+  shooter:{ r:13, hp:3, sp:60,  col:'#d9a62b', pts:30 },
+  boom:   { r:14, hp:2, sp:120, col:'#ff2bd6', pts:25 },
+};
+function spawnFoe() {
+  const roll = Math.random(), w = wave;
+  let t = 'runner';
+  if (w >= 2 && roll < .25) t = 'fast';
+  if (w >= 3 && roll > .82) t = 'tank';
+  if (w >= 4 && roll > .68 && roll <= .82) t = 'shooter';
+  if (w >= 5 && roll > .55 && roll <= .68) t = 'boom';
+  const T = TYPES[t], side = Math.floor(Math.random() * 4), m = 30;
+  let x, y;
+  if (side === 0) { x = Math.random() * W; y = -m; }
+  else if (side === 1) { x = W + m; y = Math.random() * H; }
+  else if (side === 2) { x = Math.random() * W; y = H + m; }
+  else { x = -m; y = Math.random() * H; }
+  const scale = 1 + (w - 1) * 0.05;
+  foes.push({ t, x, y, r:T.r, hp:Math.ceil(T.hp * (1 + (w-1)*0.12)), sp:T.sp * scale, col:T.col, pts:T.pts, cd:1 + Math.random()*2, blink:0, wob:Math.random()*6 });
+}
+
+function burst(x, y, col, n=14, sp=180) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = sp * (.3 + Math.random());
+    parts.push({ x, y, vx:Math.cos(a)*v, vy:Math.sin(a)*v, life:.4 + Math.random()*.4, max:.8, col, s:2 + Math.random()*3 });
+  }
+}
+function floatText(x, y, txt, col='#fff') { texts.push({ x, y, txt, col, life:.8 }); }
+
+function useEmp() {
+  if (!running || emp < 100) return;
+  emp = 0; sfx.emp(); shake = 18;
+  parts.push({ ring:true, x:P.x, y:P.y, r:10, life:.6, max:.6 });
+  foes.forEach(f => { score += f.pts; burst(f.x, f.y, f.col, 10); kills++; });
+  foes = []; ebullets = [];
+}
+document.getElementById('emp').addEventListener('pointerdown', e => { e.stopPropagation(); useEmp(); });
+
+// ---------- игровой цикл ----------
+function nearest() {
+  let best = null, bd = 1e9;
+  for (const f of foes) { const d = (f.x-P.x)**2 + (f.y-P.y)**2; if (d < bd) { bd = d; best = f; } }
+  return best;
+}
+function hurt(dmg=1) {
+  if (P.inv > 0) return;
+  P.hp -= dmg; P.inv = 1.1; shake = 14; sfx.hurt();
+  burst(P.x, P.y, '#3dff6e', 18);
+  if (P.hp <= 0) gameOver();
+}
+function update(dt) {
+  // движение
+  let mx = 0, my = 0;
+  if (joy.on) {
+    const dx = joy.x - joy.sx, dy = joy.y - joy.sy, d = Math.hypot(dx, dy), max = 55;
+    if (d > 4) { const k = Math.min(d, max) / max; mx = dx / d * k; my = dy / d * k; }
+    if (d > max) { joy.sx = joy.x - dx / d * max; joy.sy = joy.y - dy / d * max; }
+  }
+  if (keys.KeyW || keys.ArrowUp) my -= 1; if (keys.KeyS || keys.ArrowDown) my += 1;
+  if (keys.KeyA || keys.ArrowLeft) mx -= 1; if (keys.KeyD || keys.ArrowRight) mx += 1;
+  const ml = Math.hypot(mx, my); if (ml > 1) { mx /= ml; my /= ml; }
+  const spd = 230;
+  P.vx += (mx * spd - P.vx) * Math.min(1, dt * 12);
+  P.vy += (my * spd - P.vy) * Math.min(1, dt * 12);
+  P.x = Math.max(P.r, Math.min(W - P.r, P.x + P.vx * dt));
+  P.y = Math.max(P.r + 50, Math.min(H - P.r, P.y + P.vy * dt));
+  P.inv = Math.max(0, P.inv - dt); P.rapid = Math.max(0, P.rapid - dt); P.triple = Math.max(0, P.triple - dt);
+
+  // авто-стрельба
+  const tgt = nearest();
+  if (tgt) P.ang = Math.atan2(tgt.y - P.y, tgt.x - P.x);
+  P.fire -= dt;
+  if (tgt && P.fire <= 0) {
+    P.fire = P.rapid > 0 ? .07 : .17;
+    const angs = P.triple > 0 ? [-.18, 0, .18] : [0];
+    angs.forEach(o => bullets.push({ x:P.x + Math.cos(P.ang)*16, y:P.y + Math.sin(P.ang)*16, vx:Math.cos(P.ang+o)*620, vy:Math.sin(P.ang+o)*620, life:1.2 }));
+    sfx.shoot();
+  }
+
+  // спавн
+  if (waveLeft > 0) {
+    spawnT -= dt;
+    if (spawnT <= 0) { spawnFoe(); waveLeft--; spawnT = Math.max(.18, .9 - wave * .06) * (.6 + Math.random()*.8); }
+  } else if (foes.length === 0) nextWave();
+
+  // пули
+  for (const b of bullets) { b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; }
+  bullets = bullets.filter(b => b.life > 0 && b.x > -20 && b.x < W + 20 && b.y > -20 && b.y < H + 20);
+
+  // враги
+  for (const f of foes) {
+    const a = Math.atan2(P.y - f.y, P.x - f.x);
+    f.wob += dt * 8;
+    const side = f.t === 'fast' ? Math.sin(f.wob) * .6 : 0;
+    let sp = f.sp;
+    if (f.t === 'shooter') { const d = Math.hypot(P.x-f.x, P.y-f.y); if (d < 200) sp = -f.sp * .5; }
+    f.x += Math.cos(a + side) * sp * dt; f.y += Math.sin(a + side) * sp * dt;
+    f.blink = Math.max(0, f.blink - dt);
+    if (f.t === 'shooter') {
+      f.cd -= dt;
+      if (f.cd <= 0) { f.cd = 2.2; ebullets.push({ x:f.x, y:f.y, vx:Math.cos(a)*220, vy:Math.sin(a)*220, life:4 }); snd('square', 300, .08, .02, 150); }
+    }
+    for (const b of bullets) {
+      if (b.life > 0 && (b.x-f.x)**2 + (b.y-f.y)**2 < (f.r+4)**2) {
+        b.life = 0; f.hp--; f.blink = .08; sfx.hit();
+        burst(b.x, b.y, f.col, 4, 120);
+      }
+    }
+    if ((P.x-f.x)**2 + (P.y-f.y)**2 < (P.r + f.r)**2) {
+      if (f.t === 'boom') { f.hp = 0; boom(.35, .5); burst(f.x, f.y, f.col, 30, 300); hurt(2); }
+      else { hurt(1); f.hp = 0; }
+    }
+  }
+  const dead = foes.filter(f => f.hp <= 0);
+  for (const f of dead) {
+    score += f.pts * wave; kills++; sfx.kill(); shake = Math.max(shake, f.t === 'tank' ? 10 : 4);
+    burst(f.x, f.y, f.col, f.t === 'tank' ? 34 : 16);
+    floatText(f.x, f.y, '+' + f.pts * wave, f.col);
+    emp = Math.min(100, emp + (f.t === 'tank' ? 12 : 5));
+    if (f.t === 'boom') {
+      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; ebullets.push({ x:f.x, y:f.y, vx:Math.cos(a)*170, vy:Math.sin(a)*170, life:2.5 }); }
+    }
+    if (Math.random() < (f.t === 'tank' ? .6 : .08)) {
+      const kinds = ['hp', 'rapid', 'triple'];
+      pickups.push({ x:f.x, y:f.y, k:kinds[Math.floor(Math.random()*3)], life:9, t:0 });
+    }
+  }
+  foes = foes.filter(f => f.hp > 0);
+
+  // вражеские пули
+  for (const e of ebullets) {
+    e.x += e.vx * dt; e.y += e.vy * dt; e.life -= dt;
+    if ((e.x-P.x)**2 + (e.y-P.y)**2 < (P.r + 4)**2) { e.life = 0; hurt(1); }
+  }
+  ebullets = ebullets.filter(e => e.life > 0);
+
+  // бонусы
+  for (const p of pickups) {
+    p.life -= dt; p.t += dt;
+    if ((p.x-P.x)**2 + (p.y-P.y)**2 < (P.r + 14)**2) {
+      p.life = 0; sfx.pick();
+      if (p.k === 'hp') { P.hp = Math.min(P.max, P.hp + 1); floatText(P.x, P.y - 20, '+ЖИЗНЬ', '#3dff6e'); }
+      if (p.k === 'rapid') { P.rapid = 7; floatText(P.x, P.y - 20, 'СКОРОСТРЕЛ', '#3dff6e'); }
+      if (p.k === 'triple') { P.triple = 7; floatText(P.x, P.y - 20, 'ТРОЙНОЙ', '#3dff6e'); }
+    }
+  }
+  pickups = pickups.filter(p => p.life > 0);
+
+  for (const p of parts) {
+    p.life -= dt;
+    if (p.ring) { p.r += 900 * dt; continue; }
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= .92; p.vy *= .92;
+  }
+  parts = parts.filter(p => p.life > 0);
+  for (const t of texts) { t.life -= dt; t.y -= 40 * dt; }
+  texts = texts.filter(t => t.life > 0);
+  shake = Math.max(0, shake - dt * 40);
+}
+
+// ---------- рисование ----------
+function drawBomb(f) {
+  cx.save(); cx.translate(f.x, f.y);
+  const a = Math.atan2(P.y - f.y, P.x - f.x);
+  cx.fillStyle = f.blink > 0 ? '#fff' : '#14161a';
+  cx.strokeStyle = f.col; cx.lineWidth = f.t === 'tank' ? 3 : 2;
+  cx.shadowColor = f.col; cx.shadowBlur = 10;
+  cx.beginPath(); cx.arc(0, 0, f.r, 0, Math.PI * 2); cx.fill(); cx.stroke();
+  // фитиль
+  cx.shadowBlur = 0; cx.strokeStyle = '#8a8f94'; cx.lineWidth = 2;
+  const fa = a + Math.PI;
+  cx.beginPath(); cx.moveTo(Math.cos(fa)*f.r, Math.sin(fa)*f.r); cx.lineTo(Math.cos(fa)*(f.r+6), Math.sin(fa)*(f.r+6)); cx.stroke();
+  cx.fillStyle = Math.random() < .5 ? '#ffb02e' : '#fff';
+  cx.beginPath(); cx.arc(Math.cos(fa)*(f.r+7), Math.sin(fa)*(f.r+7), 2.5, 0, Math.PI*2); cx.fill();
+  // злые глаза смотрят на игрока
+  cx.rotate(a);
+  cx.fillStyle = f.col; cx.shadowColor = f.col; cx.shadowBlur = 8;
+  const s = f.r / 12;
+  cx.beginPath(); cx.moveTo(2*s, -7*s); cx.lineTo(8*s, -3*s); cx.lineTo(7*s, -1*s); cx.lineTo(2*s, -3*s); cx.fill();
+  cx.beginPath(); cx.moveTo(2*s, 7*s); cx.lineTo(8*s, 3*s); cx.lineTo(7*s, 1*s); cx.lineTo(2*s, 3*s); cx.fill();
+  cx.restore();
+}
+function drawPlayer() {
+  if (P.inv > 0 && Math.floor(P.inv * 20) % 2) return;
+  cx.save(); cx.translate(P.x, P.y); cx.rotate(P.ang);
+  cx.shadowColor = '#3dff6e'; cx.shadowBlur = 16;
+  cx.strokeStyle = '#3dff6e'; cx.lineWidth = 2.5; cx.fillStyle = '#071a0d';
+  cx.beginPath(); cx.moveTo(18, 0); cx.lineTo(-11, -12); cx.lineTo(-5, 0); cx.lineTo(-11, 12); cx.closePath(); cx.fill(); cx.stroke();
+  if (P.rapid > 0 || P.triple > 0) { cx.strokeStyle = 'rgba(61,255,110,.4)'; cx.beginPath(); cx.arc(0, 0, 24, 0, Math.PI*2); cx.stroke(); }
+  cx.restore();
+}
+let gridOff = 0;
+function draw(dt) {
+  cx.save();
+  if (shake > 0) cx.translate((Math.random()-.5) * shake, (Math.random()-.5) * shake);
+  cx.fillStyle = 'rgba(2,2,3,.55)'; cx.fillRect(-20, -20, W + 40, H + 40);
+  // сетка
+  gridOff = (gridOff + dt * 10) % 40;
+  cx.strokeStyle = 'rgba(196,20,44,.07)'; cx.lineWidth = 1;
+  cx.beginPath();
+  for (let x = -40 + gridOff; x < W + 40; x += 40) { cx.moveTo(x, 0); cx.lineTo(x, H); }
+  for (let y = -40 + gridOff; y < H + 40; y += 40) { cx.moveTo(0, y); cx.lineTo(W, y); }
+  cx.stroke();
+
+  for (const p of pickups) {
+    if (p.life < 2 && Math.floor(p.life * 8) % 2) continue;
+    const col = p.k === 'hp' ? '#3dff6e' : p.k === 'rapid' ? '#2bd6ff' : '#d9a62b';
+    cx.save(); cx.translate(p.x, p.y + Math.sin(p.t * 4) * 3); cx.rotate(p.t * 1.5);
+    cx.strokeStyle = col; cx.shadowColor = col; cx.shadowBlur = 12; cx.lineWidth = 2;
+    cx.strokeRect(-8, -8, 16, 16);
+    cx.rotate(-p.t * 1.5); cx.fillStyle = col; cx.font = '700 11px JetBrains Mono'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText(p.k === 'hp' ? '+' : p.k === 'rapid' ? '»' : 'III', 0, 1);
+    cx.restore();
+  }
+  cx.shadowBlur = 0;
+  cx.fillStyle = '#c8ffd6'; cx.shadowColor = '#3dff6e'; cx.shadowBlur = 8;
+  for (const b of bullets) { cx.beginPath(); cx.arc(b.x, b.y, 3, 0, Math.PI*2); cx.fill(); }
+  cx.fillStyle = '#ff4d6a'; cx.shadowColor = '#ff2b4a';
+  for (const e of ebullets) { cx.beginPath(); cx.arc(e.x, e.y, 4.5, 0, Math.PI*2); cx.fill(); }
+  cx.shadowBlur = 0;
+  foes.forEach(drawBomb);
+  drawPlayer();
+  for (const p of parts) {
+    if (p.ring) {
+      cx.strokeStyle = `rgba(61,255,110,${p.life / p.max})`; cx.lineWidth = 6;
+      cx.beginPath(); cx.arc(p.x, p.y, p.r, 0, Math.PI*2); cx.stroke(); continue;
+    }
+    cx.globalAlpha = Math.max(0, p.life / p.max); cx.fillStyle = p.col;
+    cx.fillRect(p.x - p.s/2, p.y - p.s/2, p.s, p.s);
+  }
+  cx.globalAlpha = 1;
+  cx.font = '700 13px JetBrains Mono'; cx.textAlign = 'center';
+  for (const t of texts) { cx.globalAlpha = Math.max(0, t.life / .8); cx.fillStyle = t.col; cx.fillText(t.txt, t.x, t.y); }
+  cx.globalAlpha = 1;
+  // джойстик
+  if (joy.on) {
+    cx.strokeStyle = 'rgba(184,194,200,.25)'; cx.lineWidth = 2;
+    cx.beginPath(); cx.arc(joy.sx, joy.sy, 55, 0, Math.PI*2); cx.stroke();
+    cx.fillStyle = 'rgba(61,255,110,.35)';
+    const dx = joy.x - joy.sx, dy = joy.y - joy.sy, d = Math.min(Math.hypot(dx, dy), 55), a = Math.atan2(dy, dx);
+    cx.beginPath(); cx.arc(joy.sx + Math.cos(a)*d, joy.sy + Math.sin(a)*d, 22, 0, Math.PI*2); cx.fill();
+  }
+  cx.restore();
+}
+
+function hud() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('waveN').textContent = wave;
+  document.getElementById('best').textContent = 'РЕКОРД ' + Math.max(best, score);
+  const hp = document.getElementById('hp');
+  if (hp.childElementCount !== P.max) hp.innerHTML = '<i></i>'.repeat(P.max);
+  [...hp.children].forEach((el, i) => el.classList.toggle('off', i >= P.hp));
+  const e = document.getElementById('emp');
+  e.innerHTML = emp >= 100 ? 'ЭМИ<br>ГОТОВ' : 'ЭМИ<br>' + Math.floor(emp) + '%';
+  e.classList.toggle('ready', emp >= 100); e.classList.toggle('empty', emp < 100);
+}
+
+function loop(t) {
+  const dt = Math.min((t - lastT) / 1000 || 0, .05); lastT = t;
+  if (running) { update(dt); hud(); }
+  draw(dt);
+  requestAnimationFrame(loop);
+}
+
+function start() {
+  ac(); reset(); running = true;
+  document.getElementById('start').classList.add('hide');
+  document.getElementById('over').classList.add('hide');
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('emp').classList.add('show');
+}
+function gameOver() {
+  running = false; joy.on = false;
+  document.getElementById('emp').classList.remove('show');
+  const rec = score > best;
+  if (rec) { best = score; try { localStorage.setItem('db_shooter_best', best); } catch(e) {} }
+  document.getElementById('final').textContent = score;
+  document.getElementById('overInfo').innerHTML = `Волна ${wave} · убито ${kills}<br>` + (rec ? '<b style="color:#3dff6e">НОВЫЙ РЕКОРД!</b>' : 'Рекорд: ' + best);
+  setTimeout(() => document.getElementById('over').classList.remove('hide'), 700);
+  boom(.4, 1); snd('sawtooth', 110, 1.2, .08, 27);
+}
+document.getElementById('go').onclick = start;
+document.getElementById('again').onclick = start;
+document.getElementById('bestStart').textContent = best ? 'Твой рекорд: ' + best : '';
+
+// фон на стартовом экране
+P = { x:-100, y:-100, r:0, ang:0, inv:0 }; bullets = []; foes = []; ebullets = []; parts = []; pickups = []; texts = []; shake = 0;
+for (let i = 0; i < 7; i++) foes.push({ t:'runner', x:Math.random()*W, y:Math.random()*H, r:12 + Math.random()*8, hp:1, sp:0, col:['#e01f3d','#ff6a2e','#9b1028'][i%3], blink:0, wob:0 });
+requestAnimationFrame(t => { lastT = t; loop(t); });
+</script>
+</body>
+</html>
